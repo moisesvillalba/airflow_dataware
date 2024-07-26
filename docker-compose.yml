@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - /home/mvillalba/etl_airflow/postgresv:/var/lib/postgresql/data
+
+  airflow-init:
+    build: .
+    container_name: airflow-init
+    depends_on:
+      - postgres
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+    volumes:
+      - airflow_dags:/opt/airflow/dags
+      - airflow_plugins:/opt/airflow/plugins
+      - airflow_logs:/opt/airflow/logs
+    entrypoint: /bin/bash -c "airflow db upgrade && python /opt/airflow/init_airflow.py"
+
+  airflow-webserver:
+    image: apache/airflow:2.7.1
+    container_name: airflow-webserver
+    depends_on:
+      - airflow-init
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__CORE__PLUGINS_FOLDER: /opt/airflow/plugins
+      AIRFLOW__CORE__LOG_FOLDER: /opt/airflow/logs
+      SQLALCHEMY_WARN_20: '1'
+      SQLALCHEMY_SILENCE_UBER_WARNING: '1'
+    volumes:
+      - airflow_dags:/opt/airflow/dags
+      - airflow_plugins:/opt/airflow/plugins
+      - airflow_logs:/opt/airflow/logs
+    ports:
+      - "8081:8080"
+    entrypoint: /bin/bash -c "exec airflow webserver"
+
+  airflow-scheduler:
+    image: apache/airflow:2.7.1
+    container_name: airflow-scheduler
+    depends_on:
+      - airflow-init
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__CORE__PLUGINS_FOLDER: /opt/airflow/plugins
+      AIRFLOW__CORE__LOG_FOLDER: /opt/airflow/logs
+      SQLALCHEMY_WARN_20: '1'
+      SQLALCHEMY_SILENCE_UBER_WARNING: '1'
+    volumes:
+      - airflow_dags:/opt/airflow/dags
+      - airflow_plugins:/opt/airflow/plugins
+      - airflow_logs:/opt/airflow/logs
+    entrypoint: /bin/bash -c "exec airflow scheduler"
+
+# Definición de volúmenes para persistencia de datos
+volumes:
+  airflow_dags:
+  airflow_plugins:
+  airflow_logs:
